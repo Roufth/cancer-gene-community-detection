@@ -290,8 +290,6 @@ Semua hasil dapat direproduksi dengan:
 ---
 
 ## Project Information
-
-- **Judul Skripsi:** Overlapping Community Detection pada Heterogeneous Network Berbasis Machine Learning
 - **Domain:** Bioinformatika, Network Science
 - **Use Case:** Identifikasi komunitas gen kanker dan gen pleiotropic
 - **Output:** Web app interaktif untuk eksplorasi hasil komunitas
