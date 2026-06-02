@@ -10,7 +10,7 @@ from sklearn.metrics.pairwise import cosine_similarity
 
 st.set_page_config(page_title='OCD - Gen Kanker', layout='wide')
 st.title('Overlapping Community Detection — Jaringan Gen Kanker')
-st.caption('Metapath2Vec + BigCLAM | Skripsi Bioinformatika')
+st.caption('Metapath2Vec + BigCLAM')
 
 # ============================================================
 # LOAD ARTIFACTS
