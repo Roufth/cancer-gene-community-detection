@@ -1,5 +1,5 @@
 streamlit>=1.28
-numpy>=1.24,<2.0
+numpy>=2.0
 pandas>=2.0
 networkx>=3.0
 matplotlib>=3.7
