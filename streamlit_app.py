@@ -469,9 +469,3 @@ with tab5:
                     # Render
                     summary_md = '\n'.join(fact_lines)
                     st.markdown(summary_md)
-
-                    st.caption(
-                        'Catatan: Semua angka & nama pathway diambil langsung dari hasil enrichment '
-                        '(Enrichr API: KEGG, GO, Reactome). Interpretasi fungsional di luar yang tersebut '
-                        'perlu diverifikasi terhadap literatur primer.'
-                    )
