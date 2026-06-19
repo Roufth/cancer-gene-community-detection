@@ -5,7 +5,6 @@ import numpy as np
 import pandas as pd
 import networkx as nx
 import matplotlib.pyplot as plt
-import matplotlib.cm as cm
 from sklearn.metrics.pairwise import cosine_similarity
 from scipy.spatial import ConvexHull
 from matplotlib.lines import Line2D
@@ -89,7 +88,7 @@ def render_per_community(G, communities, membership, k_val, cols=4):
     fig, axes = plt.subplots(rows, cols, figsize=(4.5 * cols, 4.5 * rows))
     axes = np.atleast_1d(axes).flatten()
     member_count = {n: len(c) for n, c in membership.items()}
-    cmap = cm.get_cmap('tab20', max(n_coms, 1))
+    cmap = plt.get_cmap('tab20', max(n_coms, 1))
     for i, members in enumerate(communities):
         ax = axes[i]
         members_in_pos = [n for n in members if n in pos]
@@ -120,7 +119,7 @@ def render_overlay_communities(G, communities, membership, k_val):
     n_coms = len(communities)
     if n_coms == 0:
         return fig
-    cmap = cm.get_cmap('tab20', max(n_coms, 1))
+    cmap = plt.get_cmap('tab20', max(n_coms, 1))
     colors = [cmap(i) for i in range(n_coms)]
     member_count = {n: len(c) for n, c in membership.items()}
 
