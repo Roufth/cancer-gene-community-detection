@@ -325,6 +325,11 @@ def render_hetero_combined(communities, membership, prot_compounds):
                         alpha=0.05, edgecolor=colors[i], linestyle='--')
             except Exception:
                 pass
+    # Label Entrez ID untuk semua node protein
+    nx.draw_networkx_labels(G_weighted, pos, ax=ax,
+                            labels={str(n): str(n) for n in prot_set if str(n) in pos},
+                            font_size=6, font_color='black')
+
     ov = [str(n) for n, c in membership.items() if len(c) > 1 and str(n) in pos]
     if ov:
         nx.draw_networkx_nodes(G_weighted, pos, ax=ax, nodelist=ov, node_color='tomato',
