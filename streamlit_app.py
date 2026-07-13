@@ -192,33 +192,21 @@ def render_overlay_communities(G, communities, membership, k_val):
     return fig
 
 
-def render_heterogeneous_community(comm_idx, communities, membership, prot_compounds, max_compounds=30):
-    """Overlay node senyawa (drug-target asli) pada satu komunitas protein.
+def _hetero_size(nd, mc):
+    c = mc.get(str(nd), mc.get(nd, 1))
+    return 200 + c * 300 if c > 1 else 120
 
-    Senyawa = overlay dari relasi CPI asli, BUKAN anggota komunitas hasil BigCLAM.
-    Return: (fig, total_compounds, shown_compounds, overlapping_symbols, n_multi)
-    """
+
+def render_hetero_single(comm_idx, communities, membership, prot_compounds):
+    """1 komunitas + overlay senyawa. Style: tab20 (warna komunitas) + Convex Hull."""
     proteins = [str(p) for p in communities[comm_idx]]
-
-    # Senyawa yang menarget protein pada komunitas ini
     comp_set = set()
     for p in proteins:
         comp_set.update(prot_compounds.get(p, []))
     total_comp = len(comp_set)
+    multi = {c for c in comp_set
+             if sum(1 for p in proteins if c in prot_compounds.get(p, [])) >= 2}
 
-    # Batasi jumlah senyawa (ambil yang paling banyak terhubung ke komunitas)
-    if len(comp_set) > max_compounds:
-        deg = {c: sum(1 for p in proteins if c in prot_compounds.get(p, [])) for c in comp_set}
-        comp_set = set(sorted(comp_set, key=lambda c: deg[c], reverse=True)[:max_compounds])
-
-    # Senyawa multi-target: menarget >= 2 protein pada komunitas ini
-    multi = set()
-    for c in comp_set:
-        n_tgt = sum(1 for p in proteins if c in prot_compounds.get(p, []))
-        if n_tgt >= 2:
-            multi.add(c)
-
-    # Subgraph gabungan protein + senyawa
     H = nx.Graph()
     H.add_nodes_from(proteins)
     H.add_nodes_from(comp_set)
@@ -232,39 +220,138 @@ def render_heterogeneous_community(comm_idx, communities, membership, prot_compo
             if c in prot_compounds.get(p, []):
                 H.add_edge(c, p, etype='cpi')
 
-    hpos = nx.spring_layout(H, seed=42, k=0.6, iterations=100)
+    hpos = nx.spring_layout(H, seed=42, k=0.6, iterations=120)
+    K = len(communities)
+    comm_color = plt.get_cmap('tab20', K)(comm_idx)
+    mc = {n: len(c) for n, c in membership.items()}
+
     fig, ax = plt.subplots(figsize=(12, 9))
+    pp  = [(u, v) for u, v, d in H.edges(data=True) if d['etype'] == 'pp']
+    cpi = [(u, v) for u, v, d in H.edges(data=True) if d['etype'] == 'cpi']
+    nx.draw_networkx_edges(H, hpos, edgelist=pp, edge_color='royalblue', width=1.3, alpha=0.5, ax=ax)
+    nx.draw_networkx_edges(H, hpos, edgelist=cpi, edge_color='#c084fc',
+                           style='dashed', width=0.9, alpha=0.6, ax=ax)
 
-    pp_edges  = [(u, v) for u, v, d in H.edges(data=True) if d['etype'] == 'pp']
-    cpi_edges = [(u, v) for u, v, d in H.edges(data=True) if d['etype'] == 'cpi']
-    nx.draw_networkx_edges(H, hpos, edgelist=pp_edges, edge_color='#9ca3af', width=1.2, ax=ax)
-    nx.draw_networkx_edges(H, hpos, edgelist=cpi_edges, edge_color='#c084fc',
-                           style='dashed', width=1.0, alpha=0.7, ax=ax)
-
-    p_over  = [p for p in proteins if len(membership.get(str(p), membership.get(p, []))) > 1]
-    p_plain = [p for p in proteins if p not in p_over]
+    p_over = [p for p in proteins if len(membership.get(str(p), membership.get(p, []))) > 1]
+    nx.draw_networkx_nodes(H, hpos, nodelist=proteins, node_color=[comm_color],
+                           node_size=[_hetero_size(p, mc) for p in proteins], alpha=0.75,
+                           edgecolors='white', linewidths=0.5, ax=ax)
+    if len(proteins) >= 3:
+        pts = np.array([hpos[n] for n in proteins])
+        try:
+            hull = ConvexHull(pts)
+            ax.fill(pts[hull.vertices, 0], pts[hull.vertices, 1], color=comm_color,
+                    alpha=0.05, edgecolor=comm_color, linestyle='--')
+        except Exception:
+            pass
+    if p_over:
+        nx.draw_networkx_nodes(H, hpos, nodelist=p_over, node_color='tomato',
+                               node_size=[_hetero_size(p, mc) for p in p_over],
+                               edgecolors='black', linewidths=1.5, ax=ax)
     d_multi = [c for c in comp_set if c in multi]
-    d_plain  = [c for c in comp_set if c not in multi]
-
-    nx.draw_networkx_nodes(H, hpos, nodelist=p_plain, node_color='#2563eb', node_shape='o',
-                           node_size=500, ax=ax, label='Protein')
-    nx.draw_networkx_nodes(H, hpos, nodelist=p_over, node_color='#dc2626', node_shape='o',
-                           node_size=800, ax=ax, label='Protein (overlapping)')
-    nx.draw_networkx_nodes(H, hpos, nodelist=d_plain, node_color='#16a34a', node_shape='s',
-                           node_size=280, ax=ax, label='Senyawa')
+    d_plain = [c for c in comp_set if c not in multi]
+    nx.draw_networkx_nodes(H, hpos, nodelist=d_plain, node_color='#374151', node_shape='s',
+                           node_size=130, alpha=0.85, ax=ax)
     nx.draw_networkx_nodes(H, hpos, nodelist=d_multi, node_color='#f59e0b', node_shape='s',
-                           node_size=420, ax=ax, label='Senyawa multi-target')
-
-    nx.draw_networkx_labels(H, hpos, labels={p: gene_mapping.get(p, p) for p in proteins},
+                           node_size=210, edgecolors='black', linewidths=0.6, ax=ax)
+    nx.draw_networkx_labels(H, hpos, labels={p: gene_mapping.get(str(p), p) for p in proteins},
                             font_size=8, font_color='black', ax=ax)
 
-    ax.set_title(f'Komunitas {comm_idx + 1} + Overlay Senyawa\n'
-                 f'{len(proteins)} protein + {len(comp_set)} senyawa '
-                 f'(dari total {total_comp} senyawa)', fontsize=12)
-    ax.legend(scatterpoints=1, loc='upper right', fontsize=9)
+    leg = [
+        Line2D([0], [0], marker='o', color='w', label=f'Protein (Komunitas {comm_idx + 1})',
+               markerfacecolor=comm_color, markersize=10),
+        Line2D([0], [0], marker='o', color='w', label='Protein overlapping',
+               markerfacecolor='tomato', markersize=11, markeredgecolor='black'),
+        Line2D([0], [0], marker='s', color='w', label='Senyawa',
+               markerfacecolor='#374151', markersize=9),
+        Line2D([0], [0], marker='s', color='w', label='Senyawa multi-target',
+               markerfacecolor='#f59e0b', markersize=11, markeredgecolor='black'),
+    ]
+    ax.legend(handles=leg, loc='upper right', fontsize=9, frameon=True)
+    ax.set_title(f'Komunitas {comm_idx + 1} + Overlay Senyawa — '
+                 f'{len(proteins)} protein + {total_comp} senyawa',
+                 fontsize=13, fontweight='bold')
     ax.axis('off')
     plt.tight_layout()
-    return fig, total_comp, len(comp_set), [gene_mapping.get(p, p) for p in p_over], len(multi)
+    return fig, total_comp, [gene_mapping.get(str(p), p) for p in p_over], len(multi)
+
+
+def render_hetero_combined(communities, membership, prot_compounds):
+    """Gabungan SEMUA komunitas + overlay senyawa. Style CELL 17 (tab20 + Convex Hull),
+    layout protein konsisten dari precomputed_pos; posisi senyawa = centroid target."""
+    K = len(communities)
+    prot_set = set(str(n) for n in G_weighted.nodes())
+
+    comp_targets = {}
+    for p, cs in prot_compounds.items():
+        for c in cs:
+            comp_targets.setdefault(c, []).append(str(p))
+    comp_pos = {}
+    for c, tgts in comp_targets.items():
+        pts = [pos[p] for p in tgts if p in pos]
+        if pts:
+            comp_pos[c] = (float(np.mean([q[0] for q in pts])),
+                           float(np.mean([q[1] for q in pts])))
+    comp_all = set(comp_pos.keys())
+    pos_all = {**pos, **comp_pos}
+    multi = {c for c in comp_all if sum(1 for p in comp_targets[c] if p in prot_set) >= 2}
+
+    cmap = plt.get_cmap('tab20', K)
+    colors = [cmap(i) for i in range(K)]
+    mc = {n: len(c) for n, c in membership.items()}
+
+    fig, ax = plt.subplots(figsize=(16, 13))
+    w = [G_weighted[u][v].get('weight', 1) for u, v in G_weighted.edges()]
+    nx.draw_networkx_edges(G_weighted, pos, ax=ax, width=[(x * 2) for x in w],
+                           alpha=0.10, edge_color='royalblue')
+    cpi_edges = [(c, p) for c in comp_all for p in comp_targets[c] if p in prot_set]
+    Hcpi = nx.Graph()
+    Hcpi.add_edges_from(cpi_edges)
+    nx.draw_networkx_edges(Hcpi, pos_all, ax=ax, edgelist=cpi_edges,
+                           edge_color='#c084fc', style='dashed', width=0.4, alpha=0.18)
+
+    for i, members in enumerate(communities):
+        mp = [str(n) for n in members if str(n) in pos]
+        if not mp:
+            continue
+        nx.draw_networkx_nodes(G_weighted, pos, ax=ax, nodelist=mp, node_color=[colors[i]],
+                               node_size=[_hetero_size(m, mc) for m in mp], alpha=0.7,
+                               edgecolors='white', linewidths=0.5)
+        if len(mp) >= 3:
+            pts = np.array([pos[n] for n in mp])
+            try:
+                hull = ConvexHull(pts)
+                ax.fill(pts[hull.vertices, 0], pts[hull.vertices, 1], color=colors[i],
+                        alpha=0.05, edgecolor=colors[i], linestyle='--')
+            except Exception:
+                pass
+    ov = [str(n) for n, c in membership.items() if len(c) > 1 and str(n) in pos]
+    if ov:
+        nx.draw_networkx_nodes(G_weighted, pos, ax=ax, nodelist=ov, node_color='tomato',
+                               node_size=[_hetero_size(n, mc) for n in ov],
+                               edgecolors='black', linewidths=1.5)
+    d_multi = [c for c in comp_all if c in multi]
+    d_plain = [c for c in comp_all if c not in multi]
+    nx.draw_networkx_nodes(Hcpi, pos_all, ax=ax, nodelist=d_plain, node_color='#374151',
+                           node_shape='s', node_size=50, alpha=0.8)
+    nx.draw_networkx_nodes(Hcpi, pos_all, ax=ax, nodelist=d_multi, node_color='#f59e0b',
+                           node_shape='s', node_size=90, edgecolors='black', linewidths=0.5)
+
+    leg = [
+        Line2D([0], [0], marker='o', color='w', label='Protein overlapping',
+               markerfacecolor='tomato', markersize=11, markeredgecolor='black'),
+        Line2D([0], [0], marker='s', color='w', label='Senyawa',
+               markerfacecolor='#374151', markersize=8),
+        Line2D([0], [0], marker='s', color='w', label='Senyawa multi-target',
+               markerfacecolor='#f59e0b', markersize=10, markeredgecolor='black'),
+    ]
+    ax.legend(handles=leg, loc='upper right', fontsize=9, frameon=True)
+    ax.set_title(f'Graf Heterogen Gabungan (K={K}) — {len(prot_set)} protein + '
+                 f'{len(comp_all)} senyawa | Overlapping: {len(ov)} | Multi-target: {len(multi)}',
+                 fontsize=14, fontweight='bold')
+    ax.axis('off')
+    plt.tight_layout()
+    return fig, len(prot_set), len(comp_all), len(ov), len(multi)
 
 
 # ============================================================
@@ -561,20 +648,29 @@ with tab6:
             'Senyawa merupakan overlay dari data CPI, **bukan** anggota komunitas hasil deteksi. '
             'Senyawa multi-target (oranye) menarget lebih dari satu protein.'
         )
-        comm_options = [f'Komunitas {i + 1}' for i in range(len(community_list))]
-        col_a, col_b = st.columns([2, 1])
-        sel_comm = col_a.selectbox('Pilih komunitas:', comm_options, key='hetero_comm')
-        max_comp = col_b.slider('Maks senyawa:', 5, 60, 30, key='hetero_maxcomp')
-        cidx = comm_options.index(sel_comm)
+        mode = st.radio('Mode:', ['1 Komunitas', 'Gabungan Semua Komunitas'],
+                        horizontal=True, key='hetero_mode')
 
-        with st.spinner('Merender graf heterogen...'):
-            fig, total_c, shown_c, over_syms, n_multi = render_heterogeneous_community(
-                cidx, community_list, membership_map, protein_compounds, max_compounds=max_comp)
-        st.pyplot(fig, use_container_width=True)
-
-        m1, m2, m3 = st.columns(3)
-        m1.metric('Total senyawa target', total_c)
-        m2.metric('Senyawa ditampilkan', shown_c)
-        m3.metric('Senyawa multi-target', n_multi)
-        if over_syms:
-            st.markdown(f'**Protein overlapping di komunitas ini:** {", ".join(over_syms)}')
+        if mode == '1 Komunitas':
+            comm_options = [f'Komunitas {i + 1}' for i in range(len(community_list))]
+            sel_comm = st.selectbox('Pilih komunitas:', comm_options, key='hetero_comm')
+            cidx = comm_options.index(sel_comm)
+            with st.spinner('Merender graf heterogen...'):
+                fig, total_c, over_syms, n_multi = render_hetero_single(
+                    cidx, community_list, membership_map, protein_compounds)
+            st.pyplot(fig, use_container_width=True)
+            m1, m2 = st.columns(2)
+            m1.metric('Total senyawa target', total_c)
+            m2.metric('Senyawa multi-target', n_multi)
+            if over_syms:
+                st.markdown(f'**Protein overlapping di komunitas ini:** {", ".join(over_syms)}')
+        else:
+            with st.spinner('Merender graf gabungan...'):
+                fig, n_prot, n_comp, n_ov, n_multi = render_hetero_combined(
+                    community_list, membership_map, protein_compounds)
+            st.pyplot(fig, use_container_width=True)
+            m1, m2, m3, m4 = st.columns(4)
+            m1.metric('Protein', n_prot)
+            m2.metric('Senyawa', n_comp)
+            m3.metric('Overlapping', n_ov)
+            m4.metric('Multi-target', n_multi)
