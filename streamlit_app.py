@@ -197,6 +197,14 @@ def _hetero_size(nd, mc):
     return 200 + c * 300 if c > 1 else 120
 
 
+def _cid_label(c):
+    """Format id senyawa 'CID000005291' -> PubChem CID '5291'."""
+    s = str(c)
+    if s.startswith('CID'):
+        return s[3:].lstrip('0') or '0'
+    return s
+
+
 def render_hetero_single(comm_idx, communities, membership, prot_compounds):
     """1 komunitas + overlay senyawa. Style: tab20 (warna komunitas) + Convex Hull."""
     proteins = [str(p) for p in communities[comm_idx]]
@@ -256,6 +264,8 @@ def render_hetero_single(comm_idx, communities, membership, prot_compounds):
                            node_size=210, edgecolors='black', linewidths=0.6, ax=ax)
     nx.draw_networkx_labels(H, hpos, labels={p: gene_mapping.get(str(p), p) for p in proteins},
                             font_size=8, font_color='black', ax=ax)
+    nx.draw_networkx_labels(H, hpos, labels={c: _cid_label(c) for c in comp_set},
+                            font_size=6, font_color='#374151', ax=ax)
 
     leg = [
         Line2D([0], [0], marker='o', color='w', label=f'Protein (Komunitas {comm_idx + 1})',
@@ -341,6 +351,9 @@ def render_hetero_combined(communities, membership, prot_compounds):
                            node_shape='s', node_size=50, alpha=0.8)
     nx.draw_networkx_nodes(Hcpi, pos_all, ax=ax, nodelist=d_multi, node_color='#f59e0b',
                            node_shape='s', node_size=90, edgecolors='black', linewidths=0.5)
+    nx.draw_networkx_labels(Hcpi, pos_all, ax=ax,
+                            labels={c: _cid_label(c) for c in comp_all},
+                            font_size=5, font_color='#374151')
 
     leg = [
         Line2D([0], [0], marker='o', color='w', label='Protein overlapping',
