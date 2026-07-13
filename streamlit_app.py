@@ -265,7 +265,9 @@ def render_hetero_single(comm_idx, communities, membership, prot_compounds):
     nx.draw_networkx_labels(H, hpos, labels={p: gene_mapping.get(str(p), p) for p in proteins},
                             font_size=8, font_color='black', ax=ax)
     nx.draw_networkx_labels(H, hpos, labels={c: _cid_label(c) for c in comp_set},
-                            font_size=6, font_color='#7c3aed', ax=ax)
+                            font_size=6, font_color='#111111', ax=ax,
+                            bbox=dict(boxstyle='round,pad=0.12', facecolor='#fde047',
+                                      edgecolor='none', alpha=0.9))
 
     leg = [
         Line2D([0], [0], marker='o', color='w', label=f'Protein (Komunitas {comm_idx + 1})',
@@ -353,7 +355,9 @@ def render_hetero_combined(communities, membership, prot_compounds):
                            node_shape='s', node_size=90, edgecolors='black', linewidths=0.5)
     nx.draw_networkx_labels(Hcpi, pos_all, ax=ax,
                             labels={c: _cid_label(c) for c in comp_all},
-                            font_size=5, font_color='#7c3aed')
+                            font_size=5, font_color='#111111',
+                            bbox=dict(boxstyle='round,pad=0.1', facecolor='#fde047',
+                                      edgecolor='none', alpha=0.9))
 
     leg = [
         Line2D([0], [0], marker='o', color='w', label='Protein overlapping',
