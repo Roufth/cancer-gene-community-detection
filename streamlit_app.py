@@ -192,15 +192,91 @@ def render_overlay_communities(G, communities, membership, k_val):
     return fig
 
 
+def render_heterogeneous_community(comm_idx, communities, membership, prot_compounds, max_compounds=30):
+    """Overlay node senyawa (drug-target asli) pada satu komunitas protein.
+
+    Senyawa = overlay dari relasi CPI asli, BUKAN anggota komunitas hasil BigCLAM.
+    Return: (fig, total_compounds, shown_compounds, overlapping_symbols, n_multi)
+    """
+    proteins = [str(p) for p in communities[comm_idx]]
+
+    # Senyawa yang menarget protein pada komunitas ini
+    comp_set = set()
+    for p in proteins:
+        comp_set.update(prot_compounds.get(p, []))
+    total_comp = len(comp_set)
+
+    # Batasi jumlah senyawa (ambil yang paling banyak terhubung ke komunitas)
+    if len(comp_set) > max_compounds:
+        deg = {c: sum(1 for p in proteins if c in prot_compounds.get(p, [])) for c in comp_set}
+        comp_set = set(sorted(comp_set, key=lambda c: deg[c], reverse=True)[:max_compounds])
+
+    # Senyawa multi-target: menarget >= 2 protein pada komunitas ini
+    multi = set()
+    for c in comp_set:
+        n_tgt = sum(1 for p in proteins if c in prot_compounds.get(p, []))
+        if n_tgt >= 2:
+            multi.add(c)
+
+    # Subgraph gabungan protein + senyawa
+    H = nx.Graph()
+    H.add_nodes_from(proteins)
+    H.add_nodes_from(comp_set)
+    for i in range(len(proteins)):
+        for j in range(i + 1, len(proteins)):
+            a, b = proteins[i], proteins[j]
+            if G_weighted.has_edge(a, b):
+                H.add_edge(a, b, etype='pp')
+    for c in comp_set:
+        for p in proteins:
+            if c in prot_compounds.get(p, []):
+                H.add_edge(c, p, etype='cpi')
+
+    hpos = nx.spring_layout(H, seed=42, k=0.6, iterations=100)
+    fig, ax = plt.subplots(figsize=(12, 9))
+
+    pp_edges  = [(u, v) for u, v, d in H.edges(data=True) if d['etype'] == 'pp']
+    cpi_edges = [(u, v) for u, v, d in H.edges(data=True) if d['etype'] == 'cpi']
+    nx.draw_networkx_edges(H, hpos, edgelist=pp_edges, edge_color='#9ca3af', width=1.2, ax=ax)
+    nx.draw_networkx_edges(H, hpos, edgelist=cpi_edges, edge_color='#c084fc',
+                           style='dashed', width=1.0, alpha=0.7, ax=ax)
+
+    p_over  = [p for p in proteins if len(membership.get(str(p), membership.get(p, []))) > 1]
+    p_plain = [p for p in proteins if p not in p_over]
+    d_multi = [c for c in comp_set if c in multi]
+    d_plain  = [c for c in comp_set if c not in multi]
+
+    nx.draw_networkx_nodes(H, hpos, nodelist=p_plain, node_color='#2563eb', node_shape='o',
+                           node_size=500, ax=ax, label='Protein')
+    nx.draw_networkx_nodes(H, hpos, nodelist=p_over, node_color='#dc2626', node_shape='o',
+                           node_size=800, ax=ax, label='Protein (overlapping)')
+    nx.draw_networkx_nodes(H, hpos, nodelist=d_plain, node_color='#16a34a', node_shape='s',
+                           node_size=280, ax=ax, label='Senyawa')
+    nx.draw_networkx_nodes(H, hpos, nodelist=d_multi, node_color='#f59e0b', node_shape='s',
+                           node_size=420, ax=ax, label='Senyawa multi-target')
+
+    nx.draw_networkx_labels(H, hpos, labels={p: gene_mapping.get(p, p) for p in proteins},
+                            font_size=8, font_color='black', ax=ax)
+
+    ax.set_title(f'Komunitas {comm_idx + 1} + Overlay Senyawa\n'
+                 f'{len(proteins)} protein + {len(comp_set)} senyawa '
+                 f'(dari total {total_comp} senyawa)', fontsize=12)
+    ax.legend(scatterpoints=1, loc='upper right', fontsize=9)
+    ax.axis('off')
+    plt.tight_layout()
+    return fig, total_comp, len(comp_set), [gene_mapping.get(p, p) for p in p_over], len(multi)
+
+
 # ============================================================
 # TABS UTAMA
 # ============================================================
-tab1, tab2, tab3, tab4, tab5 = st.tabs([
+tab1, tab2, tab3, tab4, tab5, tab6 = st.tabs([
     'Visualisasi Komunitas',
     'Daftar Gen Per Komunitas',
     'Gen Overlapping',
     'Kurva Optimasi K',
     'Gene Explorer',
+    'Graf Heterogen',
 ])
 
 # --- TAB 1: Visualisasi Komunitas (toggle: Overlay vs Grid) ---
@@ -468,3 +544,37 @@ with tab5:
                     # Render
                     summary_md = '\n'.join(fact_lines)
                     st.markdown(summary_md)
+
+# --- TAB 6: Graf Heterogen per Komunitas (overlay senyawa) ---
+with tab6:
+    st.subheader(f'Graf Heterogen per Komunitas (K={selected_k})')
+    protein_compounds = artifacts.get('protein_compounds')
+    if not protein_compounds:
+        st.warning(
+            'Data senyawa (`protein_compounds`) belum tersedia di artifacts. '
+            'Jalankan ulang pipeline dengan CELL 20 versi baru, buat ulang slim pickle, '
+            'lalu re-deploy agar fitur ini aktif.'
+        )
+    else:
+        st.caption(
+            'Overlay node senyawa (relasi *drug-target* asli di HIN) pada komunitas hasil BigCLAM. '
+            'Senyawa merupakan overlay dari data CPI, **bukan** anggota komunitas hasil deteksi. '
+            'Senyawa multi-target (oranye) menarget lebih dari satu protein.'
+        )
+        comm_options = [f'Komunitas {i + 1}' for i in range(len(community_list))]
+        col_a, col_b = st.columns([2, 1])
+        sel_comm = col_a.selectbox('Pilih komunitas:', comm_options, key='hetero_comm')
+        max_comp = col_b.slider('Maks senyawa:', 5, 60, 30, key='hetero_maxcomp')
+        cidx = comm_options.index(sel_comm)
+
+        with st.spinner('Merender graf heterogen...'):
+            fig, total_c, shown_c, over_syms, n_multi = render_heterogeneous_community(
+                cidx, community_list, membership_map, protein_compounds, max_compounds=max_comp)
+        st.pyplot(fig, use_container_width=True)
+
+        m1, m2, m3 = st.columns(3)
+        m1.metric('Total senyawa target', total_c)
+        m2.metric('Senyawa ditampilkan', shown_c)
+        m3.metric('Senyawa multi-target', n_multi)
+        if over_syms:
+            st.markdown(f'**Protein overlapping di komunitas ini:** {", ".join(over_syms)}')
