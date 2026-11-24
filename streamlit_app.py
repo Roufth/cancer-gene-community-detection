@@ -39,18 +39,24 @@ k_min, k_max = min(all_k), max(all_k)
 # ============================================================
 if 'k_value' not in st.session_state:
     st.session_state.k_value = int(artifacts['best_k'])
+# Nilai awal widget diatur lewat session_state (bukan parameter value=)
+st.session_state.setdefault('k_slider', st.session_state.k_value)
+st.session_state.setdefault('k_input', st.session_state.k_value)
 
-def _sync_from_slider(): st.session_state.k_value = st.session_state.k_slider
-def _sync_from_input():  st.session_state.k_value = st.session_state.k_input
+def _sync_from_slider():
+    st.session_state.k_value = st.session_state.k_slider
+    st.session_state.k_input = st.session_state.k_slider
+
+def _sync_from_input():
+    st.session_state.k_value = st.session_state.k_input
+    st.session_state.k_slider = st.session_state.k_input
 
 st.sidebar.header('Konfigurasi')
 st.sidebar.info(f'K Optimal: **K = {artifacts["best_k"]}**')
 st.sidebar.slider('Geser K:', min_value=k_min, max_value=k_max,
-                  value=st.session_state.k_value, key='k_slider',
-                  on_change=_sync_from_slider)
+                  key='k_slider', on_change=_sync_from_slider)
 st.sidebar.number_input('Atau ketik K:', min_value=k_min, max_value=k_max,
-                        value=st.session_state.k_value, step=1, key='k_input',
-                        on_change=_sync_from_input)
+                        step=1, key='k_input', on_change=_sync_from_input)
 selected_k = st.session_state.k_value
 st.sidebar.success(f'**K aktif: {selected_k}**')
 
@@ -402,13 +408,13 @@ with tab1:
         st.caption('Tiap komunitas diberi warna berbeda dengan Convex Hull. Node tomato = overlapping (anggota ≥2 komunitas).')
         with st.spinner('Rendering overlay...'):
             fig = render_overlay_communities(G_weighted, community_list, membership_map, selected_k)
-        st.pyplot(fig, use_container_width=True)
+        st.pyplot(fig, width='stretch')
     else:
         st.caption('Setiap panel = 1 komunitas. Node besar = overlapping.')
         with st.spinner('Rendering grid...'):
             fig = render_per_community(G_weighted, community_list, membership_map, selected_k)
         if fig is not None:
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width='stretch')
 
 # --- TAB 2: Daftar Gen Per Komunitas ---
 with tab2:
@@ -425,7 +431,7 @@ with tab2:
                 'Overlapping': n_overlap, 'Daftar Gen': ', '.join(symbols),
             })
         df_communities = pd.DataFrame(table_rows)
-        st.dataframe(df_communities, use_container_width=True, hide_index=True,
+        st.dataframe(df_communities, width='stretch', hide_index=True,
                      column_config={'Daftar Gen': st.column_config.TextColumn(width='large')})
         st.download_button('Download CSV', df_communities.to_csv(index=False),
                            file_name=f'komunitas_K{selected_k}.csv', mime='text/csv')
@@ -451,7 +457,7 @@ with tab3:
             })
     if overlap_rows:
         df_ov = pd.DataFrame(overlap_rows).sort_values('Jumlah', ascending=False)
-        st.dataframe(df_ov, use_container_width=True, hide_index=True)
+        st.dataframe(df_ov, width='stretch', hide_index=True)
     else:
         st.info('Tidak ada gen overlapping pada K ini.')
 
@@ -533,7 +539,7 @@ with tab5:
                         'Komunitas Sama': same_com,
                         'Komunitas': ', '.join([f'K{c+1}' for c in similar_comms]) or '-',
                     })
-                st.dataframe(pd.DataFrame(top_data), use_container_width=True, hide_index=True)
+                st.dataframe(pd.DataFrame(top_data), width='stretch', hide_index=True)
 
             # === 5. INSIGHT BIOLOGIS (jika enrichment tersedia) ===
             st.markdown('### 💡 Insight Biologis')
@@ -680,7 +686,7 @@ with tab6:
             with st.spinner('Merender graf heterogen...'):
                 fig, total_c, over_syms, n_multi = render_hetero_single(
                     cidx, community_list, membership_map, protein_compounds)
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width='stretch')
             m1, m2 = st.columns(2)
             m1.metric('Total senyawa target', total_c)
             m2.metric('Senyawa multi-target', n_multi)
@@ -690,7 +696,7 @@ with tab6:
             with st.spinner('Merender graf gabungan...'):
                 fig, n_prot, n_comp, n_ov, n_multi = render_hetero_combined(
                     community_list, membership_map, protein_compounds)
-            st.pyplot(fig, use_container_width=True)
+            st.pyplot(fig, width='stretch')
             m1, m2, m3, m4 = st.columns(4)
             m1.metric('Protein', n_prot)
             m2.metric('Senyawa', n_comp)

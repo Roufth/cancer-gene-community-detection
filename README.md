@@ -15,7 +15,7 @@ Data Mentah (Heterogeneous):
 
            ↓ Metapath2Vec (Heterogeneous-aware Embedding)
 
-   Embedding Vektor 64-dim per node
+   Embedding Vektor 32-dim per node
 
            ↓ Top-K Cosine Similarity (K=10)
 
@@ -32,11 +32,18 @@ Data Mentah (Heterogeneous):
 
 ## Fitur Aplikasi
 
-Aplikasi memiliki **5 tab utama** yang dapat diakses melalui antarmuka Streamlit:
+Aplikasi memiliki **6 tab utama** yang dapat diakses melalui antarmuka Streamlit:
 
-### Tab 1: Visualisasi Per Komunitas
+### Tab 1: Visualisasi Komunitas
 
-Menampilkan grid subplot di mana **setiap panel merepresentasikan satu komunitas**.
+Dua mode visualisasi yang dapat dipilih:
+
+**Mode Overlay (default):**
+- Semua komunitas dalam satu plot, tiap komunitas diberi warna berbeda dengan Convex Hull
+- Gen overlapping ditandai warna tomato dengan border hitam
+- Legend komunitas di sisi kanan
+
+**Mode Grid:** subplot di mana **setiap panel merepresentasikan satu komunitas**.
 
 - Background: semua node/edge dalam abu-abu tipis (sebagai konteks)
 - Highlight: node dan edge dari komunitas yang sedang dilihat
@@ -115,10 +122,27 @@ Fitur **eksplorasi gen individual** dengan auto-generated insight biologis.
 - Adjusted P-value untuk tiap pathway
 
 **Section E — Ringkasan Insight:**
-- Natural language summary tentang gen
-- Mengandung: status pleiotropic, peran fungsional, kandidat gen partner
+- Ringkasan faktual yang disusun hanya dari data (tanpa klaim eksternal)
+- Mengandung: status pleiotropic, pathway signifikan teratas, gen sekomunitas dengan embedding similarity tertinggi
 
 **Tujuan:** Demonstrasi bahwa output BigCLAM **bermakna biologis** untuk gen spesifik.
+
+### Tab 6: Graf Heterogen
+
+Overlay **node senyawa** (relasi drug-target asli di HIN) pada komunitas hasil BigCLAM. Senyawa merupakan overlay dari data CPI, **bukan** anggota komunitas hasil deteksi.
+
+**Mode 1 Komunitas:**
+- Protein anggota komunitas terpilih + senyawa yang menargetnya
+- Label protein dengan Gene Symbol, label senyawa dengan PubChem CID
+- Senyawa multi-target (menarget ≥2 protein) ditandai warna oranye
+- Menampilkan jumlah senyawa target, senyawa multi-target, dan protein overlapping
+
+**Mode Gabungan Semua Komunitas:**
+- Seluruh komunitas dengan layout protein yang konsisten (precomputed), posisi senyawa = centroid protein targetnya
+- Label protein dengan Entrez ID
+- Menampilkan jumlah protein, senyawa, protein overlapping, dan senyawa multi-target
+
+**Tujuan:** Melihat keterkaitan senyawa obat dengan struktur komunitas gen.
 
 ---
 
@@ -183,8 +207,8 @@ Di bagian atas main panel, ditampilkan **4 metric cards** yang update real-time 
 ### Tahap 1: Konstruksi Heterogeneous Information Network (HIN)
 
 Dua tipe node:
-- **Protein** (gen kanker): 290 node, Entrez ID
-- **Drug** (senyawa): ~150 node, PubChem CID
+- **Protein** (gen kanker): 324 node, Entrez ID
+- **Drug** (senyawa): 41 node, PubChem CID (menarget 108 protein)
 
 Dua tipe edge:
 - **Drug-Target**: hubungan obat menarget protein
@@ -222,8 +246,9 @@ Empat strategi metapath untuk capture struktur heterogen:
 ### Tahap 6: Validasi
 
 **Validasi Statistik:**
-- Hyperparameter ablation study (4 parameter)
-- Multi-criteria ranking (Modularity + Density + Conductance)
+- Eksperimen K=1 hingga K=30, K optimal dipilih berdasarkan **Overlap Modularity tertinggi** (K=12, 0.2366); Internal Density dan Conductance sebagai metrik pendukung
+- Hyperparameter sensitivity analysis (4 parameter: Top-K, Vector Size, Epochs, Walk Length)
+- Komparasi strategi konstruksi edge: Top-K vs Threshold vs K-Adaptive
 
 **Validasi Biologis (Multi-Database):**
 - KEGG Pathways (reference)
